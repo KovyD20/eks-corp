@@ -21,3 +21,22 @@ module "vpc" {
 
   enable_nat_gateway = true
 }
+
+# ─────────────────────────────────────────
+# ECR
+# ─────────────────────────────────────────
+module "ecr" {
+  source = "../../modules/ecr"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  repositories = [
+    "backend",    # A backend alkalmazásunk
+    "frontend",   # Ha lesz frontend
+  ]
+
+  image_tag_mutability = "IMMUTABLE"
+  scan_on_push         = true
+  max_image_count      = 10
+}
