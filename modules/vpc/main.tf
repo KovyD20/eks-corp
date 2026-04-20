@@ -3,7 +3,7 @@
 # ─────────────────────────────────────────
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
-  enable_dns_hostnames = true   # Fontos! EKS és RDS szükségeli
+  enable_dns_hostnames = true
   enable_dns_support   = true
 
   tags = {
@@ -31,12 +31,12 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidrs[count.index]
   availability_zone       = var.availability_zones[count.index]
-  map_public_ip_on_launch = true  # Public subnetben auto-kap public IP-t
+  map_public_ip_on_launch = true 
 
   tags = {
     Name = "${var.project_name}-${var.environment}-public-${var.availability_zones[count.index]}"
 
-    # Ezek a tagek KÖTELEZŐEK az AWS Load Balancer Controller-nek!
+    # Mandatory tags for AWS Load Balancer Controller!
     "kubernetes.io/role/elb"                    = "1"
     "kubernetes.io/cluster/${var.project_name}-${var.environment}" = "shared"
   }
@@ -55,7 +55,7 @@ resource "aws_subnet" "private" {
   tags = {
     Name = "${var.project_name}-${var.environment}-private-${var.availability_zones[count.index]}"
 
-    # Ezek a tagek KÖTELEZŐEK az AWS Load Balancer Controller-nek!
+    # Mandatory tags for AWS Load Balancer Controller!
     "kubernetes.io/role/internal-elb"                              = "1"
     "kubernetes.io/cluster/${var.project_name}-${var.environment}" = "shared"
   }
