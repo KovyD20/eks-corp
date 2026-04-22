@@ -23,6 +23,11 @@ output "node_role_arn" {
 }
 
 output "cluster_oidc_issuer_url" {
-  description = "OIDC issuer URL – Pod Identity-hez kell"
+  description = "OIDC issuer URL - for Pod Identity"
   value       = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
+
+output "lbc_role_arn" {
+  description = "IAM role ARN for the AWS Load Balancer Controller"
+  value       = aws_iam_role.lbc.arn
 }
