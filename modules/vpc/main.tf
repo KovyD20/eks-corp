@@ -65,11 +65,11 @@ resource "aws_subnet" "private" {
 # ELASTIC IP
 # ─────────────────────────────────────────
 resource "aws_eip" "nat" {
-  count  = var.enable_nat_gateway ? 1 : 0
+  count  = var.enable_nat_gateway ? length(var.availability_zones) : 0
   domain = "vpc"
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-nat-eip"
+    Name = "${var.project_name}-${var.environment}-nat-eip-${var.availability_zones[count.index]}"
   }
 
   depends_on = [aws_internet_gateway.main]
@@ -79,13 +79,13 @@ resource "aws_eip" "nat" {
 # NAT GATEWAY
 # ─────────────────────────────────────────
 resource "aws_nat_gateway" "main" {
-  count = var.enable_nat_gateway ? 1 : 0
+  count = var.enable_nat_gateway ? length(var.availability_zones) : 0
 
-  allocation_id = aws_eip.nat[0].id
-  subnet_id     = aws_subnet.public[0].id  
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-nat"
+    Name = "${var.project_name}-${var.environment}-nat-${var.availability_zones[count.index]}"
   }
 
   depends_on = [aws_internet_gateway.main]
@@ -118,18 +118,19 @@ resource "aws_route_table_association" "public" {
 # ROUTE TABLE – PRIVATE
 # ─────────────────────────────────────────
 resource "aws_route_table" "private" {
+  count  = length(var.availability_zones)
   vpc_id = aws_vpc.main.id
 
   dynamic "route" {
     for_each = var.enable_nat_gateway ? [1] : []
     content {
       cidr_block     = "0.0.0.0/0"
-      nat_gateway_id = aws_nat_gateway.main[0].id
+      nat_gateway_id = aws_nat_gateway.main[count.index].id
     }
   }
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-rt-private"
+    Name = "${var.project_name}-${var.environment}-rt-private-${var.availability_zones[count.index]}"
   }
 }
 
@@ -137,5 +138,5 @@ resource "aws_route_table_association" "private" {
   count = length(var.availability_zones)
 
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private[count.index].id
 }
