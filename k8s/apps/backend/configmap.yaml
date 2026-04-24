@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: backend
+data:
+  db_secret_arn: "arn:aws:secretsmanager:eu-west-3:554422868760:secret:eks-corp/prod/db-credentials-2CsY9Y"

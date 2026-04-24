@@ -20,6 +20,7 @@ spec:
       labels:
         app: backend
     spec:
+      serviceAccountName: backend-sa
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
@@ -30,15 +31,20 @@ spec:
 
       containers:
         - name: backend
-          image: 554422868760.dkr.ecr.eu-west-3.amazonaws.com/eks-corp-prod-backend:v1.0.0
+          image: 554422868760.dkr.ecr.eu-west-3.amazonaws.com/eks-corp-prod-backend:v2.0.0
           ports:
             - containerPort: 3000
 
           env:
             - name: NODE_ENV
               value: "production"
-            - name: APP_VERSION
-              value: "1.0.0"
+            - name: AWS_REGION
+              value: "eu-west-3"
+            - name: DB_SECRET_ARN
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: db_secret_arn
 
           resources:
             requests:

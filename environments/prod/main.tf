@@ -55,11 +55,31 @@ module "eks" {
   private_subnet_ids = module.vpc.private_subnet_ids
   public_subnet_ids  = module.vpc.public_subnet_ids
 
-  kubernetes_version  = "1.29"
+  kubernetes_version  = "1.30"
   node_instance_types = ["t3.large"]
 
   node_desired_size = 2
   node_min_size     = 2
   node_max_size     = 6
   node_disk_size    = 50
+}
+
+# ─────────────────────────────────────────
+# RDS
+# ─────────────────────────────────────────
+module "rds" {
+  source = "../../modules/rds"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnet_ids
+
+  eks_node_security_group_id = module.eks.node_security_group_id
+  eks_cluster_name           = module.eks.cluster_name
+
+  db_instance_class = "db.t3.medium"
+  db_name           = "ekscorp"
+  db_username       = "ekscorp_admin"
 }

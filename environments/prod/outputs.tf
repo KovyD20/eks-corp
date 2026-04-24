@@ -22,3 +22,22 @@ output "eks_cluster_name" {
 output "eks_cluster_endpoint" {
   value = module.eks.cluster_endpoint
 }
+
+output "rds_endpoint" {
+  description = "RDS PostgreSQL hostname (private)"
+  value       = module.rds.db_endpoint
+}
+
+output "rds_db_name" {
+  value = module.rds.db_name
+}
+
+output "rds_secret_arn" {
+  description = "Secrets Manager secret ARN for DB credentials"
+  value       = module.rds.secret_arn
+}
+
+output "backend_role_arn" {
+  description = "IAM role ARN used by backend pods via Pod Identity"
+  value       = module.rds.backend_role_arn
+}
