@@ -45,6 +45,11 @@ spec:
                 configMapKeyRef:
                   name: backend-config
                   key: db_secret_arn
+            - name: S3_BUCKET_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: backend-config
+                  key: s3_bucket_name
 
           resources:
             requests:

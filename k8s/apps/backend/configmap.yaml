@@ -5,3 +5,4 @@ metadata:
   namespace: backend
 data:
   db_secret_arn: "arn:aws:secretsmanager:eu-west-3:554422868760:secret:eks-corp/prod/db-credentials-2CsY9Y"
+  s3_bucket_name: "eks-corp-prod-company-554422868760"

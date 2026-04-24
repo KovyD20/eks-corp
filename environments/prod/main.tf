@@ -65,6 +65,17 @@ module "eks" {
 }
 
 # ─────────────────────────────────────────
+# Company S3
+# ─────────────────────────────────────────
+module "s3" {
+  source = "../../modules/s3"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  backend_role_name = module.rds.backend_role_name
+}
+
+# ─────────────────────────────────────────
 # RDS
 # ─────────────────────────────────────────
 module "rds" {

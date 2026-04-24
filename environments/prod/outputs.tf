@@ -41,3 +41,12 @@ output "backend_role_arn" {
   description = "IAM role ARN used by backend pods via Pod Identity"
   value       = module.rds.backend_role_arn
 }
+
+output "s3_bucket_name" {
+  description = "Company S3 bucket name"
+  value       = module.s3.bucket_name
+}
+
+output "s3_bucket_arn" {
+  value = module.s3.bucket_arn
+}

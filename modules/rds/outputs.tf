@@ -24,3 +24,8 @@ output "backend_role_arn" {
   description = "IAM role ARN for backend Pod Identity"
   value       = aws_iam_role.backend.arn
 }
+
+output "backend_role_name" {
+  description = "IAM role name for backend Pod Identity"
+  value       = aws_iam_role.backend.name
+}
