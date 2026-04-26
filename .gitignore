@@ -26,3 +26,6 @@ Thumbs.db
 
 # JS backend
 node_modules/
+
+# Lambda build artifacts
+lambda/**/*.zip

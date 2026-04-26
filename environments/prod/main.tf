@@ -65,6 +65,18 @@ module "eks" {
 }
 
 # ─────────────────────────────────────────
+# Lambda – Service Check Automation
+# ─────────────────────────────────────────
+module "lambda" {
+  source = "../../modules/lambda"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  s3_bucket_name  = module.s3.bucket_name
+  health_endpoint = "k8s-backend-backendi-5dffa49604-288487052.eu-west-3.elb.amazonaws.com"
+}
+
+# ─────────────────────────────────────────
 # Company S3
 # ─────────────────────────────────────────
 module "s3" {
