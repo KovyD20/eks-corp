@@ -39,11 +39,21 @@ variable "node_desired_size" {
 variable "node_min_size" {
   type    = number
   default = 2
+
+  validation {
+    condition     = var.node_min_size >= 1
+    error_message = "node_min_size must be at least 1."
+  }
 }
 
 variable "node_max_size" {
   type    = number
   default = 6
+
+  validation {
+    condition     = var.node_max_size >= 1
+    error_message = "node_max_size must be at least 1."
+  }
 }
 
 variable "node_disk_size" {

@@ -19,10 +19,6 @@ variable "eks_cluster_security_group_id" {
   description = "EKS-managed cluster security group, attached to the managed nodes – used to allow RDS ingress"
 }
 
-variable "eks_cluster_name" {
-  type = string
-}
-
 variable "db_name" {
   type    = string
   default = "ekscorp"

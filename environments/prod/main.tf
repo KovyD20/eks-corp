@@ -1,6 +1,10 @@
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
 locals {
   name = "${var.project_name}-${var.environment}"
-  azs  = ["${var.aws_region}a", "${var.aws_region}b", "${var.aws_region}c"]
+  azs  = slice(data.aws_availability_zones.available.names, 0, 3)
 }
 
 # ─────────────────────────────────────────
@@ -13,10 +17,6 @@ module "vpc" {
   environment        = var.environment
   vpc_cidr           = "10.0.0.0/16"
   availability_zones = local.azs
-
-  public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
-  private_subnet_cidrs = ["10.0.11.0/24", "10.0.12.0/24", "10.0.13.0/24"]
-
   enable_nat_gateway = true
 }
 
@@ -80,9 +80,8 @@ module "lambda" {
 module "s3" {
   source = "../../modules/s3"
 
-  project_name      = var.project_name
-  environment       = var.environment
-  backend_role_name = module.rds.backend_role_name
+  project_name = var.project_name
+  environment  = var.environment
 }
 
 # ─────────────────────────────────────────
@@ -98,7 +97,6 @@ module "rds" {
   private_subnet_ids = module.vpc.private_subnet_ids
 
   eks_cluster_security_group_id = module.eks.cluster_security_group_id
-  eks_cluster_name              = module.eks.cluster_name
 
   db_instance_class = "db.t3.medium"
   db_name           = "ekscorp"

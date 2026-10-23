@@ -14,6 +14,11 @@ variable "environment" {
   description = "Environment name"
   type        = string
   default     = "prod"
+
+  validation {
+    condition     = contains(["dev", "prod"], var.environment)
+    error_message = "environment must be dev or prod."
+  }
 }
 
 variable "health_endpoint" {

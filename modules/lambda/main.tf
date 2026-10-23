@@ -25,7 +25,7 @@ resource "aws_iam_role" "service_check" {
 # ─────────────────────────────────────────
 resource "aws_iam_policy" "service_check" {
   name        = "${var.project_name}-${var.environment}-service-check-policy"
-  description = "Allows the service check Lambda to write logs, read S3, and save reports"
+  description = "Allows the service check Lambda to write logs, list S3, and save reports"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -33,20 +33,14 @@ resource "aws_iam_policy" "service_check" {
       {
         Sid      = "Logs"
         Effect   = "Allow"
-        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
-        Resource = "arn:aws:logs:*:*:*"
+        Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "${aws_cloudwatch_log_group.service_check.arn}:*"
       },
       {
         Sid      = "S3List"
         Effect   = "Allow"
         Action   = ["s3:ListBucket"]
         Resource = "arn:aws:s3:::${var.s3_bucket_name}"
-      },
-      {
-        Sid      = "S3ReadAll"
-        Effect   = "Allow"
-        Action   = ["s3:GetObject"]
-        Resource = "arn:aws:s3:::${var.s3_bucket_name}/*"
       },
       {
         Sid      = "S3WriteReports"
@@ -81,6 +75,11 @@ resource "aws_lambda_function" "service_check" {
       S3_BUCKET       = var.s3_bucket_name
     }
   }
+}
+
+resource "aws_cloudwatch_log_group" "service_check" {
+  name              = "/aws/lambda/${aws_lambda_function.service_check.function_name}"
+  retention_in_days = 14
 }
 
 # ─────────────────────────────────────────

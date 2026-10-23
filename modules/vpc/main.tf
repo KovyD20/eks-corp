@@ -1,3 +1,8 @@
+locals {
+  public_subnets  = { for i, az in var.availability_zones : az => cidrsubnet(var.vpc_cidr, 8, i + 1) }
+  private_subnets = { for i, az in var.availability_zones : az => cidrsubnet(var.vpc_cidr, 8, i + 11) }
+}
+
 # ─────────────────────────────────────────
 # VPC
 # ─────────────────────────────────────────
@@ -26,15 +31,15 @@ resource "aws_internet_gateway" "main" {
 # PUBLIC SUBNETS
 # ─────────────────────────────────────────
 resource "aws_subnet" "public" {
-  count = length(var.availability_zones)
+  for_each = local.public_subnets
 
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet_cidrs[count.index]
-  availability_zone       = var.availability_zones[count.index]
+  cidr_block              = each.value
+  availability_zone       = each.key
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-public-${var.availability_zones[count.index]}"
+    Name = "${var.project_name}-${var.environment}-public-${each.key}"
 
     # Mandatory tags for AWS Load Balancer Controller!
     "kubernetes.io/role/elb"                                       = "1"
@@ -46,14 +51,14 @@ resource "aws_subnet" "public" {
 # PRIVATE SUBNETS
 # ─────────────────────────────────────────
 resource "aws_subnet" "private" {
-  count = length(var.availability_zones)
+  for_each = local.private_subnets
 
   vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = var.availability_zones[count.index]
+  cidr_block        = each.value
+  availability_zone = each.key
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-private-${var.availability_zones[count.index]}"
+    Name = "${var.project_name}-${var.environment}-private-${each.key}"
 
     # Mandatory tags for AWS Load Balancer Controller!
     "kubernetes.io/role/internal-elb"                              = "1"
@@ -65,11 +70,11 @@ resource "aws_subnet" "private" {
 # ELASTIC IP
 # ─────────────────────────────────────────
 resource "aws_eip" "nat" {
-  count  = var.enable_nat_gateway ? length(var.availability_zones) : 0
-  domain = "vpc"
+  for_each = var.enable_nat_gateway ? local.public_subnets : {}
+  domain   = "vpc"
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-nat-eip-${var.availability_zones[count.index]}"
+    Name = "${var.project_name}-${var.environment}-nat-eip-${each.key}"
   }
 
   depends_on = [aws_internet_gateway.main]
@@ -79,13 +84,13 @@ resource "aws_eip" "nat" {
 # NAT GATEWAY
 # ─────────────────────────────────────────
 resource "aws_nat_gateway" "main" {
-  count = var.enable_nat_gateway ? length(var.availability_zones) : 0
+  for_each = var.enable_nat_gateway ? local.public_subnets : {}
 
-  allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id
+  allocation_id = aws_eip.nat[each.key].id
+  subnet_id     = aws_subnet.public[each.key].id
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-nat-${var.availability_zones[count.index]}"
+    Name = "${var.project_name}-${var.environment}-nat-${each.key}"
   }
 
   depends_on = [aws_internet_gateway.main]
@@ -108,9 +113,9 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_route_table_association" "public" {
-  count = length(var.availability_zones)
+  for_each = aws_subnet.public
 
-  subnet_id      = aws_subnet.public[count.index].id
+  subnet_id      = each.value.id
   route_table_id = aws_route_table.public.id
 }
 
@@ -118,25 +123,25 @@ resource "aws_route_table_association" "public" {
 # ROUTE TABLE – PRIVATE
 # ─────────────────────────────────────────
 resource "aws_route_table" "private" {
-  count  = length(var.availability_zones)
-  vpc_id = aws_vpc.main.id
+  for_each = local.private_subnets
+  vpc_id   = aws_vpc.main.id
 
   dynamic "route" {
     for_each = var.enable_nat_gateway ? [1] : []
     content {
       cidr_block     = "0.0.0.0/0"
-      nat_gateway_id = aws_nat_gateway.main[count.index].id
+      nat_gateway_id = aws_nat_gateway.main[each.key].id
     }
   }
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-rt-private-${var.availability_zones[count.index]}"
+    Name = "${var.project_name}-${var.environment}-rt-private-${each.key}"
   }
 }
 
 resource "aws_route_table_association" "private" {
-  count = length(var.availability_zones)
+  for_each = aws_subnet.private
 
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[count.index].id
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.private[each.key].id
 }

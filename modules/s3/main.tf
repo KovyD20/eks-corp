@@ -93,11 +93,3 @@ resource "aws_iam_policy" "backend_s3" {
     ]
   })
 }
-
-# ─────────────────────────────────────────
-# Attach backend S3 policy to backend IAM role
-# ─────────────────────────────────────────
-resource "aws_iam_role_policy_attachment" "backend_s3" {
-  role       = var.backend_role_name
-  policy_arn = aws_iam_policy.backend_s3.arn
-}
