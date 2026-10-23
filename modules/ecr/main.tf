@@ -42,38 +42,3 @@ resource "aws_ecr_lifecycle_policy" "repos" {
     ]
   })
 }
-
-# ─────────────────────────────────────────
-# REPOSITORY POLICY
-# ─────────────────────────────────────────
-data "aws_caller_identity" "current" {}
-
-resource "aws_ecr_repository_policy" "repos" {
-  for_each   = aws_ecr_repository.repos
-  repository = each.value.name
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "AllowPushPullFromSameAccount"
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
-        }
-        Action = [
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:PutImage",
-          "ecr:InitiateLayerUpload",
-          "ecr:UploadLayerPart",
-          "ecr:CompleteLayerUpload",
-          "ecr:DescribeRepositories",
-          "ecr:GetRepositoryPolicy",
-          "ecr:ListImages"
-        ]
-      }
-    ]
-  })
-}

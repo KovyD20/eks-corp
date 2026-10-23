@@ -1,5 +1,3 @@
-
-
 locals {
   name = "${var.project_name}-${var.environment}"
   azs  = ["${var.aws_region}a", "${var.aws_region}b", "${var.aws_region}c"]
@@ -32,7 +30,7 @@ module "ecr" {
   environment  = var.environment
 
   repositories = [
-    "backend",    
+    "backend",
     "frontend"
   ]
 
@@ -55,7 +53,7 @@ module "eks" {
   private_subnet_ids = module.vpc.private_subnet_ids
   public_subnet_ids  = module.vpc.public_subnet_ids
 
-  kubernetes_version  = "1.33"
+  kubernetes_version  = "1.35"
   node_instance_types = ["t3.large"]
 
   node_desired_size = 2
@@ -73,7 +71,7 @@ module "lambda" {
   project_name    = var.project_name
   environment     = var.environment
   s3_bucket_name  = module.s3.bucket_name
-  health_endpoint = "k8s-backend-backendi-5dffa49604-288487052.eu-west-3.elb.amazonaws.com"
+  health_endpoint = var.health_endpoint
 }
 
 # ─────────────────────────────────────────
@@ -99,8 +97,8 @@ module "rds" {
   vpc_id             = module.vpc.vpc_id
   private_subnet_ids = module.vpc.private_subnet_ids
 
-  eks_node_security_group_id = module.eks.node_security_group_id
-  eks_cluster_name           = module.eks.cluster_name
+  eks_cluster_security_group_id = module.eks.cluster_security_group_id
+  eks_cluster_name              = module.eks.cluster_name
 
   db_instance_class = "db.t3.medium"
   db_name           = "ekscorp"

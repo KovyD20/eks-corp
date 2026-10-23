@@ -67,54 +67,22 @@ resource "aws_iam_policy" "backend_s3" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ListBucket"
-        Effect = "Allow"
-        Action = ["s3:ListBucket"]
+        Sid      = "ListBucket"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
         Resource = aws_s3_bucket.company.arn
         Condition = {
           StringLike = { "s3:prefix" = ["uploads/*", "documents/*", "reports/*"] }
         }
       },
       {
-        Sid    = "UploadsReadWrite"
-        Effect = "Allow"
-        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Sid      = "UploadsReadWrite"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
         Resource = "${aws_s3_bucket.company.arn}/uploads/*"
       },
       {
         Sid    = "DocumentsReadOnly"
-        Effect = "Allow"
-        Action = ["s3:GetObject"]
-        Resource = [
-          "${aws_s3_bucket.company.arn}/documents/*",
-          "${aws_s3_bucket.company.arn}/reports/*"
-        ]
-      }
-    ]
-  })
-}
-
-# ─────────────────────────────────────────
-# IAM Policy – Read Only (documents + reports)
-# ─────────────────────────────────────────
-resource "aws_iam_policy" "readonly_s3" {
-  name        = "${var.project_name}-${var.environment}-readonly-s3-policy"
-  description = "Read-only S3 access to documents and reports folders"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "ListBucket"
-        Effect = "Allow"
-        Action = ["s3:ListBucket"]
-        Resource = aws_s3_bucket.company.arn
-        Condition = {
-          StringLike = { "s3:prefix" = ["documents/*", "reports/*"] }
-        }
-      },
-      {
-        Sid    = "ReadObjects"
         Effect = "Allow"
         Action = ["s3:GetObject"]
         Resource = [

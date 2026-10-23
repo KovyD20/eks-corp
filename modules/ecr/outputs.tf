@@ -13,8 +13,3 @@ output "repository_arns" {
     name => repo.arn
   }
 }
-
-output "registry_id" {
-  description = "The AWS account ID associated with the ECR registry"
-  value       = data.aws_caller_identity.current.account_id
-}

@@ -22,13 +22,13 @@ variable "public_subnet_ids" {
 
 variable "kubernetes_version" {
   type    = string
-  default = "1.29"
+  default = "1.35"
 }
 
 variable "node_instance_types" {
   description = "EC2 instance types for node group"
   type        = list(string)
-  default     = ["t3.large"]  
+  default     = ["t3.large"]
 }
 
 variable "node_desired_size" {
@@ -38,7 +38,7 @@ variable "node_desired_size" {
 
 variable "node_min_size" {
   type    = number
-  default = 2 
+  default = 2
 }
 
 variable "node_max_size" {

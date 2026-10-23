@@ -37,21 +37,21 @@ resource "aws_iam_policy" "service_check" {
         Resource = "arn:aws:logs:*:*:*"
       },
       {
-        Sid    = "S3List"
-        Effect = "Allow"
-        Action = ["s3:ListBucket"]
+        Sid      = "S3List"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
         Resource = "arn:aws:s3:::${var.s3_bucket_name}"
       },
       {
-        Sid    = "S3ReadAll"
-        Effect = "Allow"
-        Action = ["s3:GetObject"]
+        Sid      = "S3ReadAll"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
         Resource = "arn:aws:s3:::${var.s3_bucket_name}/*"
       },
       {
-        Sid    = "S3WriteReports"
-        Effect = "Allow"
-        Action = ["s3:PutObject"]
+        Sid      = "S3WriteReports"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
         Resource = "arn:aws:s3:::${var.s3_bucket_name}/reports/*"
       }
     ]

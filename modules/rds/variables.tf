@@ -14,9 +14,9 @@ variable "private_subnet_ids" {
   type = list(string)
 }
 
-variable "eks_node_security_group_id" {
+variable "eks_cluster_security_group_id" {
   type        = string
-  description = "Security group ID of the EKS node group – used to allow RDS ingress"
+  description = "EKS-managed cluster security group, attached to the managed nodes – used to allow RDS ingress"
 }
 
 variable "eks_cluster_name" {

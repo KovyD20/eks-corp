@@ -60,7 +60,7 @@ The infrastructure runs in `eu-west-3` (Paris) across 3 Availability Zones:
 | Layer | Technology | Details |
 |---|---|---|
 | Networking | AWS VPC | 3 public + 3 private subnets, NAT Gateways per AZ |
-| Container Orchestration | Amazon EKS 1.33 | t3.large nodes, 2–6 auto-scaling, multi-AZ |
+| Container Orchestration | Amazon EKS 1.35 | t3.large nodes, 2–6 auto-scaling, multi-AZ |
 | Container Registry | Amazon ECR | Private, immutable tags, scan on push |
 | Database | Amazon RDS PostgreSQL | Multi-AZ, db.t3.medium, Secrets Manager credentials |
 | Object Storage | Amazon S3 | Company bucket (uploads/documents/reports) + Terraform state bucket |
