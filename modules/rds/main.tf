@@ -24,14 +24,7 @@ resource "aws_security_group" "rds" {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [var.eks_node_security_group_id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    security_groups = [var.eks_cluster_security_group_id]
   }
 
   tags = {
@@ -140,27 +133,8 @@ resource "aws_db_instance" "this" {
 }
 
 # ─────────────────────────────────────────
-# IAM Role for backend Pod Identity
+# IAM Policy – read DB credentials
 # ─────────────────────────────────────────
-resource "aws_iam_role" "backend" {
-  name = "${var.project_name}-${var.environment}-backend-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect    = "Allow"
-        Principal = { Service = "pods.eks.amazonaws.com" }
-        Action    = ["sts:AssumeRole", "sts:TagSession"]
-      }
-    ]
-  })
-
-  tags = {
-    Name = "${var.project_name}-${var.environment}-backend-role"
-  }
-}
-
 resource "aws_iam_policy" "backend_secrets" {
   name        = "${var.project_name}-${var.environment}-backend-secrets-policy"
   description = "Allow backend pods to read DB credentials from Secrets Manager"
@@ -178,19 +152,4 @@ resource "aws_iam_policy" "backend_secrets" {
       }
     ]
   })
-}
-
-resource "aws_iam_role_policy_attachment" "backend_secrets" {
-  role       = aws_iam_role.backend.name
-  policy_arn = aws_iam_policy.backend_secrets.arn
-}
-
-# ─────────────────────────────────────────
-# Pod Identity Association – backend SA → IAM role
-# ─────────────────────────────────────────
-resource "aws_eks_pod_identity_association" "backend" {
-  cluster_name    = var.eks_cluster_name
-  namespace       = "backend"
-  service_account = "backend-sa"
-  role_arn        = aws_iam_role.backend.arn
 }

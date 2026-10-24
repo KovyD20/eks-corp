@@ -8,7 +8,7 @@ variable "environment" {
 
 variable "s3_bucket_name" {
   type        = string
-  description = "Company S3 bucket name – Lambda reads metadata and writes reports here"
+  description = "Company S3 bucket name – Lambda lists metadata and writes reports here"
 }
 
 variable "health_endpoint" {

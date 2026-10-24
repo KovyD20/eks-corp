@@ -10,15 +10,15 @@ output "vpc_cidr" {
 
 output "public_subnet_ids" {
   description = "List of public subnet IDs"
-  value       = aws_subnet.public[*].id
+  value       = values(aws_subnet.public)[*].id
 }
 
 output "private_subnet_ids" {
   description = "List of private subnet IDs"
-  value       = aws_subnet.private[*].id
+  value       = values(aws_subnet.private)[*].id
 }
 
-output "nat_gateway_id" {
-  description = "ID of the NAT Gateway"
-  value       = var.enable_nat_gateway ? aws_nat_gateway.main[0].id : null
+output "nat_gateway_ids" {
+  description = "NAT Gateway IDs by availability zone"
+  value       = { for az, nat in aws_nat_gateway.main : az => nat.id }
 }

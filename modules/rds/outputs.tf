@@ -20,12 +20,7 @@ output "secret_name" {
   value = aws_secretsmanager_secret.db_credentials.name
 }
 
-output "backend_role_arn" {
-  description = "IAM role ARN for backend Pod Identity"
-  value       = aws_iam_role.backend.arn
-}
-
-output "backend_role_name" {
-  description = "IAM role name for backend Pod Identity"
-  value       = aws_iam_role.backend.name
+output "secrets_read_policy_arn" {
+  description = "IAM policy ARN that allows reading the DB credentials secret"
+  value       = aws_iam_policy.backend_secrets.arn
 }
