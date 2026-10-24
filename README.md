@@ -1,15 +1,13 @@
 <a id="readme-top"></a>
 
 <div align="center">
-  <img src="images/eks_corp_banner.png" alt="EKS Corp Banner" width="100%" />
+  <img src="assets/eks_corp_banner.png" alt="EKS Corp Banner" width="100%" />
   <br /><br />
 
-  <a href="https://github.com/KovyD20/eks-corp"><strong>Explore the repo »</strong></a>
-  &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="https://github.com/KovyD20/eks-corp/issues/new?labels=bug">Report Bug</a>
-  &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="https://github.com/KovyD20/eks-corp/issues/new?labels=enhancement">Request Feature</a>
+  <a href="https://github.com/KovyD20/eks-corp/actions/workflows/ci.yml"><img src="https://github.com/KovyD20/eks-corp/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
 </div>
+
+**Status:** deployed and verified on AWS (eu-west-3), then torn down to avoid costs. The later fixes were checked with `terraform validate`, local tests and CI, but not re-applied on AWS.
 
 ---
 
@@ -23,6 +21,9 @@
     <li><a href="#getting-started">Getting Started</a></li>
     <li><a href="#deployment">Deployment</a></li>
     <li><a href="#usage">Usage</a></li>
+    <li><a href="#design-decisions">Design Decisions</a></li>
+    <li><a href="#known-limitations">Known Limitations</a></li>
+    <li><a href="#cost-and-cleanup">Cost and Cleanup</a></li>
     <li><a href="#project-structure">Project Structure</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contact">Contact</a></li>
@@ -33,7 +34,7 @@
 
 ## About The Project
 
-EKS Corp is a production-grade AWS infrastructure project that simulates a real company cloud environment. It provisions and manages a complete cloud stack using Terraform as Infrastructure as Code, covering networking, container orchestration, managed databases, object storage, and serverless automation.
+EKS Corp is a production-style AWS infrastructure project that simulates a real company cloud environment. It provisions and manages a complete cloud stack using Terraform as Infrastructure as Code, covering networking, container orchestration, managed databases, object storage, and serverless automation.
 
 **Key highlights:**
 - Multi-AZ, highly available EKS cluster running a containerised Node.js backend
@@ -51,7 +52,7 @@ EKS Corp is a production-grade AWS infrastructure project that simulates a real 
 ## Architecture
 
 <div align="center">
-  <img src="images/eks_corp_architecture.png" alt="EKS Corp Architecture" width="90%" />
+  <img src="assets/eks_corp_architecture.png" alt="EKS Corp Architecture" width="90%" />
 </div>
 <br />
 
@@ -60,7 +61,7 @@ The infrastructure runs in `eu-west-3` (Paris) across 3 Availability Zones:
 | Layer | Technology | Details |
 |---|---|---|
 | Networking | AWS VPC | 3 public + 3 private subnets, NAT Gateways per AZ |
-| Container Orchestration | Amazon EKS 1.35 | t3.large nodes, 2–6 auto-scaling, multi-AZ |
+| Container Orchestration | Amazon EKS 1.35 | t3.large nodes, node group with 2–6 scaling bounds (no cluster autoscaler), multi-AZ |
 | Container Registry | Amazon ECR | Private, immutable tags, scan on push |
 | Database | Amazon RDS PostgreSQL | Multi-AZ, db.t3.medium, Secrets Manager credentials |
 | Object Storage | Amazon S3 | Company bucket (uploads/documents/reports) + Terraform state bucket |
@@ -157,10 +158,11 @@ cd eks-corp
 ### 2. Deploy infrastructure
 
 ```sh
-cd environments/prod
-terraform init
-terraform apply
+terraform -chdir=environments/prod init
+terraform -chdir=environments/prod apply
 ```
+
+`health_endpoint` in `environments/prod/terraform.tfvars` is the ALB hostname the Lambda checks. The ALB is only created in step 6, so on the first apply the old value is fine — it is updated in step 7.
 
 ### 3. Configure kubectl
 
@@ -178,50 +180,56 @@ helm repo update
 
 helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
   -n kube-system \
+  --version 3.6.1 \
   --set clusterName=eks-corp-prod \
   --set serviceAccount.create=true \
   --set serviceAccount.name=aws-load-balancer-controller
 ```
 
+The chart version matches the IAM policy in `modules/eks/policies/`. Upgrade them together.
+
 ### 5. Build and push backend image
 
 ```sh
-cd backend
-aws ecr get-login-password --region eu-west-3 | \
-  docker login --username AWS --password-stdin \
-  554422868760.dkr.ecr.eu-west-3.amazonaws.com
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+REGISTRY=$ACCOUNT_ID.dkr.ecr.eu-west-3.amazonaws.com
 
-docker build -t eks-corp-prod-backend:v1.0.0 .
-docker tag eks-corp-prod-backend:v1.0.0 \
-  554422868760.dkr.ecr.eu-west-3.amazonaws.com/eks-corp-prod-backend:v1.0.0
-docker push \
-  554422868760.dkr.ecr.eu-west-3.amazonaws.com/eks-corp-prod-backend:v1.0.0
+aws ecr get-login-password --region eu-west-3 | \
+  docker login --username AWS --password-stdin $REGISTRY
+
+docker build -t $REGISTRY/eks-corp-prod-backend:v2.1.0 backend
+docker push $REGISTRY/eks-corp-prod-backend:v2.1.0
 ```
 
-### 6. Update ConfigMap and deploy to Kubernetes
+### 6. Deploy to Kubernetes
+
+The ConfigMap and the API key are not stored in the repo — they are created from the Terraform outputs and a random value:
 
 ```sh
-# Get outputs from Terraform
-terraform output rds_secret_arn
-terraform output s3_bucket_name
-
-# Update k8s/apps/backend/configmap.yaml with the values above, then:
 kubectl apply -f k8s/apps/backend/namespace.yaml
-kubectl apply -f k8s/apps/backend/serviceaccount.yaml
-kubectl apply -f k8s/apps/backend/configmap.yaml
-kubectl apply -f k8s/apps/backend/deployment.yaml
-kubectl apply -f k8s/apps/backend/service.yaml
-kubectl apply -f k8s/apps/backend/ingress.yaml
+
+kubectl create configmap backend-config -n backend \
+  --from-literal=db_secret_arn=$(terraform -chdir=environments/prod output -raw rds_secret_arn) \
+  --from-literal=s3_bucket_name=$(terraform -chdir=environments/prod output -raw s3_bucket_name)
+
+kubectl create secret generic backend-api-key -n backend \
+  --from-literal=api_key=$(openssl rand -hex 24)
 ```
 
-### 7. Verify deployment
+The manifests are applied with kustomize. The image is set in `k8s/apps/backend/kustomization.yaml`, with `<ACCOUNT_ID>` as a placeholder:
+
+```sh
+kubectl kustomize k8s/apps/backend | sed "s/<ACCOUNT_ID>/$ACCOUNT_ID/" | kubectl apply -f -
+```
+
+### 7. Verify deployment and connect the Lambda
 
 ```sh
 kubectl get pods -n backend
 kubectl get ingress -n backend
 ```
 
-The ALB address from the ingress output is the public endpoint of the application.
+The ALB address from the ingress output is the public endpoint of the application. Copy it into `health_endpoint` in `environments/prod/terraform.tfvars` and run `terraform apply` again, so the Lambda checks the right URL.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -234,22 +242,27 @@ The ALB address from the ingress output is the public endpoint of the applicatio
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/` | API info and version |
-| GET | `/health` | Health check — verifies DB connectivity |
-| POST | `/api/files/upload` | Upload a file to S3 (`uploads/` prefix) |
+| GET | `/livez` | Liveness check — the process is running (no DB) |
+| GET | `/health` | Readiness check — verifies DB connectivity |
+| POST | `/api/files/upload` | Upload a file to S3 (`uploads/` prefix, max 10 MB) |
 | GET | `/api/files/download?key=uploads/file.pdf` | Download a file from S3 via the backend |
 | GET | `/api/files/list?prefix=uploads/` | List files under an S3 prefix |
+
+The `/api` endpoints require the `x-api-key` header.
 
 ### Example requests
 
 ```sh
+API_KEY=$(kubectl get secret backend-api-key -n backend -o jsonpath='{.data.api_key}' | base64 -d)
+
 # Health check
 curl http://<ALB_URL>/health
 
 # Upload a file
-curl -F "file=@./document.pdf" http://<ALB_URL>/api/files/upload
+curl -H "x-api-key: $API_KEY" -F "file=@./document.pdf" http://<ALB_URL>/api/files/upload
 
 # List uploaded files
-curl http://<ALB_URL>/api/files/list?prefix=uploads/
+curl -H "x-api-key: $API_KEY" "http://<ALB_URL>/api/files/list?prefix=uploads/"
 ```
 
 ### Lambda service check
@@ -269,11 +282,66 @@ Reports are saved to `s3://eks-corp-prod-company-<account_id>/reports/`.
 
 ---
 
+## Design Decisions
+
+- **Own modules, no third-party modules** — every resource is written out, so each one can be explained.
+- **Pod Identity instead of IRSA** — no OIDC provider and no annotated ServiceAccounts, only one association per service account.
+- **One NAT Gateway per AZ** — if one AZ goes down, the others can still reach the internet. It costs three times as much as a single NAT.
+- **RDS allows the EKS cluster security group** — managed nodes without a launch template only get this security group.
+- **DB credentials in Secrets Manager** — the pod reads them at startup, so they are never in Git or in the manifests.
+- **Subnets and NAT Gateways keyed by AZ (`for_each`)** — removing an AZ only touches that AZ, not the ones after it.
+- **Backend IAM in the root module** — the RDS and S3 modules only export policies; `backend-iam.tf` decides what the backend gets.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## Known Limitations
+
+- HTTP only — there is no domain, so no ACM certificate and no HTTPS.
+- The API key is a simple shared secret, not real authentication.
+- The connection to RDS is encrypted, but the server certificate is not verified.
+- `health_endpoint` has to be updated by hand after the ALB is created.
+- There is no cluster autoscaler; the node group only has min/max bounds.
+- The Kubernetes side (Helm chart, manifests) is applied by hand, not by Terraform.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## Cost and Cleanup
+
+Running the full stack costs about 450 USD/month (rough estimate, on-demand prices in eu-west-3): EKS control plane, 3 NAT Gateways, 2 × t3.large nodes, Multi-AZ RDS and the ALB make up most of it.
+
+Tear it down in this order — the ALB is created by the Load Balancer Controller, not by Terraform, so it has to be removed first or it blocks the VPC deletion:
+
+```sh
+kubectl delete -k k8s/apps/backend
+helm uninstall aws-load-balancer-controller -n kube-system
+terraform -chdir=environments/prod destroy
+```
+
+A few things to know before and after `destroy`:
+
+- The company bucket is versioned and the Lambda writes a report every hour, so empty it (all object versions) first, otherwise `destroy` fails on it.
+- RDS leaves a final snapshot (`eks-corp-prod-final-snapshot`). It keeps costing money until you delete it, and the next `destroy` fails while it exists.
+- The DB secret is not deleted right away: it has a 7-day recovery window. Applying again within that week fails, unless you remove it for good with `aws secretsmanager delete-secret --secret-id eks-corp/prod/db-credentials --force-delete-without-recovery`.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
 ## Project Structure
 
-<div align="center">
-  <img src="images/eks_corp_project_structure.png" alt="EKS Corp Project Structure" width="85%" />
-</div>
+```
+eks-corp/
+├── .github/workflows/ci.yml   # fmt + validate, Docker build, kustomize render
+├── backend/                   # Express API (index.js, Dockerfile)
+├── environments/prod/         # root module: main.tf, backend-iam.tf, variables, tfvars
+├── modules/                   # vpc, ecr, eks, rds, s3, lambda
+├── k8s/apps/backend/          # Kubernetes manifests + kustomization.yaml
+└── lambda/service_check/      # hourly health check Lambda
+```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -282,7 +350,7 @@ Reports are saved to `s3://eks-corp-prod-company-<account_id>/reports/`.
 ## Roadmap
 
 - [x] VPC with multi-AZ networking
-- [x] EKS cluster with auto-scaling node group
+- [x] EKS cluster with a managed node group
 - [x] Private ECR repositories
 - [x] AWS Load Balancer Controller with Pod Identity
 - [x] RDS PostgreSQL Multi-AZ with Secrets Manager
@@ -290,6 +358,9 @@ Reports are saved to `s3://eks-corp-prod-company-<account_id>/reports/`.
 - [x] S3 file upload/download via backend API
 - [x] Remote Terraform state (S3 + DynamoDB)
 - [x] Lambda service check automation with EventBridge
+- [x] CI: Terraform fmt/validate, Docker build, kustomize render
+- [ ] HTTPS with a domain and an ACM certificate
+- [ ] Kubernetes side (Helm, manifests) managed by Terraform
 - [ ] CloudFront + S3 static website
 - [ ] HR management backend application with authentication
 - [ ] Automated test suite
@@ -317,17 +388,6 @@ Project Link: [https://github.com/KovyD20/eks-corp](https://github.com/KovyD20/e
 ---
 
 <!-- MARKDOWN LINKS & IMAGES -->
-[contributors-shield]: https://img.shields.io/github/contributors/KovyD20/eks-corp.svg?style=for-the-badge
-[contributors-url]: https://github.com/KovyD20/eks-corp/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/KovyD20/eks-corp.svg?style=for-the-badge
-[forks-url]: https://github.com/KovyD20/eks-corp/network/members
-[stars-shield]: https://img.shields.io/github/stars/KovyD20/eks-corp.svg?style=for-the-badge
-[stars-url]: https://github.com/KovyD20/eks-corp/stargazers
-[issues-shield]: https://img.shields.io/github/issues/KovyD20/eks-corp.svg?style=for-the-badge
-[issues-url]: https://github.com/KovyD20/eks-corp/issues
-[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
-[linkedin-url]: https://linkedin.com/in/linkedin_username
-
 [Terraform-badge]: https://img.shields.io/badge/Terraform-7B42BC?style=for-the-badge&logo=terraform&logoColor=white
 [Terraform-url]: https://www.terraform.io/
 [AWS-badge]: https://img.shields.io/badge/AWS-232F3E?style=for-the-badge&logo=amazonwebservices&logoColor=white
