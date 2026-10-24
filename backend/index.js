@@ -8,7 +8,7 @@ const { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } = r
 
 const app = express();
 app.use(express.json());
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
@@ -16,6 +16,7 @@ const PORT = process.env.PORT || 3000;
 const AWS_REGION = process.env.AWS_REGION || 'eu-west-3';
 const DB_SECRET_ARN = process.env.DB_SECRET_ARN;
 const S3_BUCKET = process.env.S3_BUCKET_NAME;
+const API_KEY = process.env.API_KEY;
 
 const s3 = new S3Client({ region: AWS_REGION });
 let pool;
@@ -27,7 +28,10 @@ async function getDbCredentials() {
       new GetSecretValueCommand({ SecretId: DB_SECRET_ARN })
     );
     const s = JSON.parse(SecretString);
-    return { host: s.host, port: s.port, database: s.dbname, user: s.username, password: s.password };
+    return {
+      host: s.host, port: s.port, database: s.dbname, user: s.username, password: s.password,
+      ssl: { rejectUnauthorized: false },
+    };
   }
   return {
     host: process.env.DB_HOST || 'localhost',
@@ -38,10 +42,21 @@ async function getDbCredentials() {
   };
 }
 
+function requireApiKey(req, res, next) {
+  if (!API_KEY || req.get('x-api-key') !== API_KEY) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  next();
+}
+
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
 app.get('/', (req, res) => {
-  res.json({ app: 'eks-corp-backend', version: '1.2.0' });
+  res.json({ app: 'eks-corp-backend', version: '2.1.0' });
+});
+
+app.get('/livez', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
 app.get('/health', async (req, res) => {
@@ -49,14 +64,17 @@ app.get('/health', async (req, res) => {
     await pool.query('SELECT 1');
     res.status(200).json({ status: 'healthy', db: 'connected' });
   } catch (err) {
-    res.status(503).json({ status: 'unhealthy', db: err.message });
+    console.error('Health check failed:', err.code);
+    res.status(503).json({ status: 'unhealthy', db: 'unreachable' });
   }
 });
+
+app.use('/api', requireApiKey);
 
 app.post('/api/files/upload', upload.single('file'), wrap(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file provided' });
 
-  const key = `uploads/${Date.now()}-${req.file.originalname}`;
+  const key = `uploads/${Date.now()}-${encodeURIComponent(req.file.originalname)}`;
   await s3.send(new PutObjectCommand({
     Bucket: S3_BUCKET,
     Key: key,
@@ -93,7 +111,7 @@ app.get('/api/files/list', wrap(async (req, res) => {
 
 app.use((err, req, res, _next) => {
   console.error(err);
-  res.status(500).json({ error: err.message });
+  res.status(500).json({ error: 'internal error' });
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
@@ -101,9 +119,15 @@ app.use((err, req, res, _next) => {
 async function start() {
   const creds = await getDbCredentials();
   pool = new Pool({ ...creds, max: 5 });
+  pool.on('error', err => console.error('DB error:', err.code));
   await pool.query('SELECT 1');
   console.log('DB connection established');
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  const server = app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+  process.on('SIGTERM', () => {
+    server.close();
+    pool.end();
+  });
 }
 
 start().catch(err => {

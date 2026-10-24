@@ -1,20 +1,16 @@
-const https = require('https');
-const http = require('http');
 const { S3Client, ListObjectsV2Command, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 const s3 = new S3Client({ region: process.env.AWS_REGION || 'eu-west-3' });
 const HEALTH_ENDPOINT = process.env.HEALTH_ENDPOINT;
 const S3_BUCKET = process.env.S3_BUCKET;
 
-function httpGet(url) {
-  return new Promise((resolve) => {
-    const lib = url.startsWith('https') ? https : http;
-    lib.get(url, { timeout: 10000 }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(data) }));
-    }).on('error', (err) => resolve({ status: 'error', error: err.message }));
-  });
+async function checkHealth(url) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    return { status: res.status, body: await res.text() };
+  } catch (err) {
+    return { status: 'error', error: err.message };
+  }
 }
 
 async function collectS3Metadata() {
@@ -45,7 +41,7 @@ exports.handler = async () => {
 
   const report = {
     generatedAt: now.toISOString(),
-    healthCheck: await httpGet(`http://${HEALTH_ENDPOINT}/health`),
+    healthCheck: await checkHealth(`http://${HEALTH_ENDPOINT}/health`),
     s3Metadata: await collectS3Metadata(),
   };
 
